@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<th:block th:fragment="list(useConverting)">
+    <style>
+        #list-layer {
+            width: 350px;
+            max-height: calc(100vh - 30px);
+            overflow-y: hidden;
+        }
+        #list-layer ul {
+            height: calc(100vh - 309px);
+            overflow-y: scroll;
+            scrollbar-width: thin;
+            position: relative;
+            background-color: var(--background-dark);
+            padding: 5px;
+            border-radius: 8px;
+        }
+        #list-layer ul > li {
+            border-radius: 8px;
+            background-color: var(--background-light);
+            margin-bottom: 5px;
+            margin-right: 5px;
+            padding: 8px 12px;
+            position: relative;
+            font-size: 11px;
+        }
+        #list-layer ul > li:last-child {
+            margin-bottom: 0;
+        }
+        #list-layer ul > li:hover {
+            background-color: var(--background-lightest);
+            cursor: pointer;
+        }
+        #list-layer ul > li.no-data {
+            background: none;
+            vertical-align: middle;
+            padding: 0;
+            text-align: center;
+            display: inline-block;
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+        }
+        #list-layer ul > li.no-data:hover {
+            cursor: default;
+        }
+
+        span.list-status-code {
+            width: 6px;
+            height: 6px;
+            border: 2px solid;
+            display: inline-block;
+            border-radius: 50%;
+            vertical-align: middle;
+        }
+        span.list-asset-name {
+            margin-left: 8px;
+            display: inline-block;
+            vertical-align: middle;
+            white-space: nowrap;
+            width: calc(100% - 20px);
+            text-overflow: ellipsis;
+            overflow: hidden;
+        }
+
+        div.search {
+            background-color: var(--input);
+            border-radius: 8px;
+            height: 30px;
+        }
+        div.search button {
+            width: 30px;
+            height: 30px;
+            position: absolute;
+            margin-left: 5px;
+        }
+        div.search input {
+            background-color: transparent;
+            border: none;
+            color: white;
+            height: 100%;
+            width: 100%;
+            vertical-align: top;
+            padding-left: 40px;
+        }
+
+        div.search-filter {
+            min-height: 30px;
+            margin-top: 5px;
+        }
+        div.search-filter > * {
+            margin-bottom: 8px;
+            display: block;
+            width: 100%;
+            padding: 0 5px;
+        }
+        div.search-filter > *:last-child {
+            margin-bottom: 0;
+        }
+
+        div.filter-wrap > * {
+            width: 100%;
+            display: block;
+            margin-bottom: 5px;
+            font-size: 11px;
+        }
+    </style>
+
+    <!-- list layer -->
+    <div id="list-layer" class="layer left top vertical">
+        <div class="search" onchange="loadAssets()" oninput="loadAssets()">
+            <button class="transparency icon">
+                <img class="icon" th:src="@{images/search.png}" alt="search"/>
+            </button>
+            <input id="search-input" type="text" th:placeholder="${#messages.msg('list.search')}"/>
+        </div>
+        <div class="search-filter">
+            <div class="filter-wrap">
+                <label for="search-asset-status" th:text="${#messages.msg('list.status')}">Asset Status</label>
+                <select id="search-asset-status" onchange="loadAssets()">
+                    <option value="" th:text="${#messages.msg('list.status.all')}" selected>All</option>
+                    <option value="success" th:text="${#messages.msg('list.status.success')}">Success</option>
+                    <option value="running" th:text="${#messages.msg('list.status.running')}">Running</option>
+                    <option value="fail" th:text="${#messages.msg('list.status.fail')}">Fail</option>
+                    <option value="notfound" th:text="${#messages.msg('list.status.notfound')}">Waiting</option>
+                </select>
+            </div>
+            <div class="filter-wrap">
+                <label for="search-asset-type" th:text="${#messages.msg('list.type')}">Asset Type</label>
+                <select id="search-asset-type" onchange="loadAssets()">
+                    <option value="" th:text="${#messages.msg('list.type.all')}" selected>All</option>
+                    <option value="tileset" th:text="${#messages.msg('list.type.tileset')}">3D Tiles</option>
+                    <option value="terrain" th:text="${#messages.msg('list.type.terrain')}">Cesium Terrain</option>
+                </select>
+            </div>
+            <div class="filter-wrap">
+                <label for="search-asset-sort" th:text="${#messages.msg('list.sort')}">Asset Sort</label>
+                <select id="search-asset-sort" onchange="loadAssets()">
+                    <option value="latest" th:text="${#messages.msg('list.sort.latest')}" selected>Latest</option>
+                    <option value="oldest" th:text="${#messages.msg('list.sort.oldest')}">Oldest</option>
+                    <option value="name" th:text="${#messages.msg('list.sort.name')}">Name</option>
+                    <option value="status" th:text="${#messages.msg('list.sort.status')}">Status</option>
+                </select>
+            </div>
+        </div>
+        <div class="line"></div>
+        <div class="right">
+            <button th:text="${#messages.msg('list.refresh')}" onclick="loadAssets()">Refresh</button>
+            <button th:text="${#messages.msg('list.new.asset')}" onclick="toggleInputWindow()" th:if="${useConverting}">+ Create New Asset</button>
+        </div>
+        <div>
+            <ul id="data-list"></ul>
+        </div>
+    </div>
+    <script>
+        const toggleListWindow = () => {
+            screenState.listWindow = !screenState.listWindow
+            const listLayer = document.getElementById('list-layer').parentElement;
+            listLayer.style.display = screenState.listWindow ? 'inline-block' : 'none'
+        }
+
+        const loadAssets = () => {
+            const searchAssetType = document.getElementById('search-asset-type').value
+            const searchAssetStatus = document.getElementById('search-asset-status').value
+            const searchAssetSort = document.getElementById('search-asset-sort').value
+            const searchInput = document.getElementById('search-input').value
+
+            const dataList = document.getElementById('data-list')
+            while (dataList.firstChild) {
+                dataList.removeChild(dataList.lastChild);
+            }
+
+            const params = {
+                'pageNumber': 0,
+                'pageSize': 500,
+                'filterWord': searchInput,
+                'assetType': searchAssetType,
+                'assetStatus': searchAssetStatus,
+                'assetSort': searchAssetSort,
+            }
+            const paramsText = new URLSearchParams(params)
+            fetch(`/api/asset?${paramsText}`, {method: 'GET', mode: 'cors'})
+                .then(response => response.json())
+                .then(data => {
+                    const assets = data.assets;
+
+                    // no data
+                    if (assets.length === 0) {
+                        const message = /*[[#{list.no.search.result}]]*/ 'No search result.'
+
+                        const li = document.createElement('li')
+                        li.classList.add('no-data')
+                        li.textContent = message
+                        dataList.appendChild(li)
+                        return
+                    }
+
+                    assets.forEach(asset => {
+                        const li = document.createElement('li')
+                        //li.textContent = tiler.name
+                        li.addEventListener('click', () => {
+                            loadAsset(asset, true)
+                        })
+
+                        const spanForStatus = document.createElement('span')
+                        //span.textContent = tiler.statusCode
+                        spanForStatus.classList.add('list-status-code')
+                        spanForStatus.title = asset.statusCode
+
+                        if (asset.statusCode === "SUCCESS") {
+                            spanForStatus.style.color = '#00b900'
+                            spanForStatus.style.backgroundColor = '#00b900'
+                        } else if (asset.statusCode === "RUNNING") {
+                            spanForStatus.style.color = 'orange'
+                            spanForStatus.style.backgroundColor = 'orange'
+                        } else if (asset.statusCode === "FAIL") {
+                            spanForStatus.style.color = 'red'
+                            spanForStatus.style.backgroundColor = 'red'
+                        } else {
+                            spanForStatus.style.color = 'gray'
+                            spanForStatus.style.backgroundColor = 'gray'
+                        }
+                        li.appendChild(spanForStatus)
+
+                        const spanForText = document.createElement('span')
+                        spanForText.classList.add('list-asset-name')
+                        spanForText.textContent = asset.name
+                        spanForText.title = asset.name
+
+                        li.appendChild(spanForText)
+
+                        dataList.appendChild(li)
+                    })
+                }).catch(error => {
+                console.error('Error:', error)
+            })
+        }
+
+        const loadAsset = async (asset) => {
+            const assetType = asset.type.toUpperCase();
+            let flyTo = true;
+            /*const assetStatus = asset.statusCode;
+            if (assetStatus !== 'SUCCESS') {
+                return
+            }*/
+
+            if (screenState.pressedCtrl) {
+                flyTo = false;
+            } else if (screenState.pressedShift) {
+                removeAllTilesets();
+                flyTo = false;
+            } else {
+                removeAllTilesets();
+            }
+
+
+            /*if (!screenState.pressedCtrl) {
+                removeAllTilesets();
+            } else {
+                flyTo = false;
+            }*/
+
+            if (assetType === 'TILESET') {
+                await loadTileset(asset, flyTo);
+            } else if (assetType === 'TERRAIN') {
+                await loadTerrain(asset, flyTo);
+            } else if (assetType === 'SIMULATION') {
+                await loadSimulation(asset, flyTo);
+            }
+        }
+
+        const loadSimulation = async (asset, useZoomTo) => {
+            const scene = viewer.scene
+            const url = `/data/${asset.name}/`
+
+
+            const result = await fetch(`${url}JsonIndex.json`, {method: 'GET', mode: 'cors'}).then((response) => {
+                return response.json();
+            }).then((data) => {
+                const list = [];
+
+                console.log(data)
+                //data.layers.forEach((layer) => {
+                    const layer = data.layers[0];
+                    layer.timeSliceFileNames.forEach((timeSliceFileName) => {
+                        const sliceUrl = `${url}${timeSliceFileName}`;
+                        console.log(sliceUrl);
+                        list.push(`${sliceUrl}`);
+                    });
+
+                    const sliceUrl = `${url}${layer.timeSliceFileNames}`;
+                    console.log(sliceUrl);
+                    //list.push(`${sliceUrl}`);
+                //});
+                return list;
+            }).catch((error) => {
+                console.log(error)
+            })
+
+            console.log(result);
+            result.forEach((sliceUrl) => {
+                fetch(`${sliceUrl}`, {method: 'GET', mode: 'cors'}).then((response) => {
+                    return response.json();
+                }).then((data) => {
+                    console.log(data)
+
+                    const glbUrl = sliceUrl.replace('.json', '.glb');
+                    const position = data.centerGeographicCoord;
+                    console.log(position)
+
+                    const entity = viewer.entities.add({
+                        position: Cesium.Cartesian3.fromDegrees(position.longitude, position.latitude, position.altitude),
+                        model: {
+                            uri: `${glbUrl}`,
+                            //scale: 1.0,
+                        }
+                    });
+                }).catch((error) => {
+                    console.log(error)
+                })
+            });
+        }
+
+        const terrainLayerInformation = {
+            rectangle : undefined,
+            rectangleEntity : undefined,
+            terrain : undefined,
+            terrainName : undefined,
+            terrainProvider : undefined,
+            zoomState : false,
+        }
+
+        const loadTerrain = async (asset, useZoomTo) => {
+            const scene = viewer.scene
+            const url = `/data/${asset.name}/`
+
+            //removeAllTilesets();
+            initInfoLayer(asset);
+            const terrainProvider = Cesium.CesiumTerrainProvider.fromUrl(url, {
+                requestVertexNormals: true,
+            })
+            const terrain = new Cesium.Terrain(terrainProvider)
+            scene.setTerrain(terrain)
+
+            terrainLayerInformation.terrain = terrain
+            terrainLayerInformation.terrainProvider = terrainProvider
+            fetch(`${url}layer.json`, {method: 'GET', mode: 'cors'}).then((response) => {
+                return response.json()
+            }).then((data) => {
+                let bounds = data.bounds
+                let xOffset = (bounds[2] - bounds[0]) / 2;
+                let yOffset = (bounds[3] - bounds[1]) / 2;
+                let margin = 0.00005
+                bounds = [
+                    bounds[0] - margin,
+                    bounds[1] - margin,
+                    bounds[2] + margin,
+                    bounds[3] + margin
+                ]
+                const rectangle = Cesium.Rectangle.fromDegrees(bounds[0], bounds[1], bounds[2], bounds[3])
+                if (terrainLayerInformation.rectangleEntity) {
+                    viewer.entities.remove(terrainLayerInformation.rectangleEntity)
+                }
+                terrainLayerInformation.rectangle = rectangle
+                if (xOffset < 180 && yOffset < 90) {
+                    terrainLayerInformation.rectangleEntity = viewer.entities.add({
+                        polyline: {
+                            positions: Cesium.Cartesian3.fromDegreesArray([
+                                bounds[0], bounds[1],
+                                bounds[2], bounds[1],
+                                bounds[2], bounds[3],
+                                bounds[0], bounds[3],
+                                bounds[0], bounds[1]
+                            ]),
+                            width: 3,
+                            material: Cesium.Color.BLUE,
+                            clampToGround: true
+                        }
+                    })
+                }
+
+                terrainLayerInformation.terrainName = data.name
+                if (useZoomTo) {
+                    if (terrainLayerInformation.rectangle) {
+                        viewer.camera.flyTo({
+                            destination : terrainLayerInformation.rectangle,
+                            duration: 0,
+                        });
+                        setTimeout(() => {
+
+                        }, 1000)
+                    }
+                }
+            }).catch((error) => {
+                console.log(error)
+            })
+        }
+
+        const loadTileset = async function(asset, useZoomTo) {
+            initInfoLayer(asset);
+            const url = `/data/${asset.name}/tileset.json`
+            const tileset = await Cesium.Cesium3DTileset.fromUrl(url, {
+                //debugShowContentBoundingVolume: true,
+                enableDebugWireframe: true,
+                debugShowBoundingVolume: screenState.debugShowBoundingVolume,
+                debugShowGeometricError: screenState.debugShowGeometricError,
+                debugShowMemoryUsage: screenState.debugShowMemoryUsage,
+                debugWireframe: screenState.debugWireframe,
+                debugShowWireframe: screenState.debugShowWireframe,
+                debugColorizeTiles: screenState.debugColorizeTiles,
+            })
+            tileset.pointCloudShading.attenuation = true;
+            tileset.pointCloudShading.maximumAttenuation = 3;
+            tileset.pointCloudShading.eyeDomeLighting = true;
+            tileset.pointCloudShading.eyeDomeLightingRadius = 1.5;
+            tileset.pointCloudShading.eyeDomeLightingStrength = 0.5;
+            tileset.maximumScreenSpaceError = 16;
+
+            viewer.scene.primitives.add(tileset)
+            if (useZoomTo) {
+                let hpr = new Cesium.HeadingPitchRange(0.0, -90.0, 0.0);
+                viewer.zoomTo(tileset, hpr)
+            }
+        }
+        const removeAllTilesets = () => {
+            viewer.scene.primitives.removeAll();
+            clearObjectTool(true);
+        }
+    </script>
+</th:block>
+</html>

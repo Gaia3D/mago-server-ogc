@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<th:block th:fragment="input">
+    <style>
+        #input-layer, #terrain-input-layer, #simulation-input-layer {
+            width: 325px;
+            position: relative;
+            left: 0;
+            top: 0;
+            overflow: hidden;
+            max-height: calc(100vh - 170px);
+        }
+
+        div.file-drops {
+            height: 100px;
+            background-color: var(--button);
+            border-radius: 8px;
+            position: relative;
+        }
+
+        div.file-drops:hover {
+            background-color: var(--button-hover);
+        }
+
+        div.file-drops input[type='file'] {
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        div.file-drops span {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 11px;
+            padding: 20px;
+            text-overflow: ellipsis;
+            overflow: hidden;
+            white-space: nowrap;
+            width: 100%;
+            text-align: center;
+        }
+
+        div#upload-file-drops, div#terrain-upload-file-drops, div#simulation-upload-file-drops {
+            height: 100%;
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            display: none;
+        }
+        span#upload-file-name, span#terrain-upload-file-name, span#simulation-upload-file-name {
+            position: absolute;
+            height: calc(100% - 10px);
+            width: calc(100% - 10px);
+            text-align: center;
+            align-content: center;
+            background-color: var(--background-color);
+            cursor: pointer;
+            border: 3px dashed;
+            margin: 5px;
+            border-radius: 12px;
+            font-size: 16px;
+        }
+        input#upload-file-drop, input#terrain-upload-file-drop, input#simulation-upload-file-drop {
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            z-index: 10;
+        }
+
+        div.vertical-scroll {
+            overflow-y: auto;
+            scrollbar-width: thin;
+            padding-bottom: 1px;
+            height: unset;
+            max-height: calc(100vh - 392px);
+            margin-bottom: 0;
+        }
+
+        div.progress {
+            display: none;
+            position: absolute;
+            left: 0;
+            bottom: 0;
+            width: 100%;
+            opacity: 0.9;
+            background-color: var(--background-dark);
+            z-index: 10;
+        }
+
+        div.progress-bar-background {
+            display: block;
+            position: absolute;
+            width: calc(100%);
+            height: 10px;
+            background-color: var(--background-light);
+        }
+
+        div.progress-bar {
+            width: 0;
+            height: 100%;
+            background-color: var(--button-active);
+            color: var(--text-active);
+        }
+        span.required {
+            color: red;
+            font-size: 12px;
+            font-weight: bold;
+            display: inline;
+            translate: -7px 0;
+            width: 0;
+            height: 0;
+        }
+    </style>
+
+    <div id="input-layer-wrap" class="left top vertical">
+        <div class="layer left top vertical">
+            <div class="input-wrap tab">
+                <h3 th:text="${#messages.msg('input.new.asset')}">Create New Asset</h3>
+                <div class="line"></div>
+                <label for="asset-type" th:text="${#messages.msg('input.type')}">Name</label>
+                <select id="asset-type" onchange="selectInputAssetType()" oninput="selectInputAssetType()">
+                    <option value="tileset" selected>Tileset</option>
+                    <option value="terrain">Terrain</option>
+                    <option value="simulation">Simulation</option>
+                </select>
+            </div>
+        </div>
+
+
+        <!-- simulation input layer -->
+        <div id="simulation-input-layer" class="layer left top vertical" ondragover="overSimulationDragFiles()">
+            <div id="simulation-progress" class="progress">
+                <div class="progress-bar-background">
+                    <div class="progress-bar"></div>
+                </div>
+            </div>
+            <div class="input-wrap">
+                <div class="input-wrap vertical-scroll">
+                    <label for="simulation-asset-name" th:inline="text">
+                        <span class="required">*</span> [[${#messages.msg('input.name')}]]
+                    </label>
+                    <input id="simulation-asset-name" type="text" th:placeholder="${#messages.msg('input.enter.asset.name')}"/>
+                    <div class="line"></div>
+                    <label for="simulation-asset-proj" th:text="${#messages.msg('input.proj.code')}">Proj Code</label>
+                    <input id="simulation-asset-proj" type="text"/>
+                </div>
+                <div class="line"></div>
+                <label th:text="${#messages.msg('input.upload.file')}">Upload Files</label>
+                <div id="simulation-file-drops" class="file-drops">
+                    <label>
+                        <span id="simulation-file-name" th:text="${#messages.msg('input.drop.file.here')}">Drop files here</span>
+                        <input id="simulation-file-drop" type="file" onChange="loadDropSimulationFiles()" multiple/>
+                    </label>
+                </div>
+                <div id="simulation-upload-file-drops" ondragleave="leaveSimulationDragFiles()" ondrop="leaveSimulationDragFiles()">
+                    <label>
+                        <span id="simulation-upload-file-name" th:text="${#messages.msg('input.drop.file.here')}">Drop files here</span>
+                        <input id="simulation-upload-file-drop" type="file" onChange="loadDropSimulationFiles()" multiple/>
+                    </label>
+                </div>
+                <button onclick="requestSimulationConvert()" th:text="${#messages.msg('input.upload')}">Upload</button>
+            </div>
+        </div>
+
+
+        <!-- tileset input layer -->
+        <div id="input-layer" class="layer left top vertical" ondragover="overDragFiles()">
+            <div id="tileset-progress" class="progress">
+                <div class="progress-bar-background">
+                    <div class="progress-bar"></div>
+                </div>
+            </div>
+            <div class="input-wrap">
+                <div class="input-wrap vertical-scroll">
+                    <label for="asset-name" th:inline="text">
+                        <span class="required">*</span> [[${#messages.msg('input.name')}]]
+                    </label>
+                    <input id="asset-name" type="text" th:placeholder="${#messages.msg('input.enter.asset.name')}"/>
+                    <div class="line"></div>
+                    <label for="asset-crs" th:inline="text">
+                        <span class="required">*</span> [[${#messages.msg('input.crs')}]]
+                    </label>
+                    <select id="asset-crs">
+                        <option value="3857" selected>EPSG:3857</option>
+                        <option value="900913">EPSG:900913</option>
+                        <option disabled>-----</option>
+                        <option value="4326">EPSG:4326</option>
+                        <option disabled>-----</option>
+                        <option value="5173">EPSG:5173</option>
+                        <option value="5174">EPSG:5174</option>
+                        <option value="5175">EPSG:5175</option>
+                        <option value="5185">EPSG:5185</option>
+                        <option value="5186">EPSG:5186</option>
+                        <option value="5187">EPSG:5187</option>
+                        <option value="5188">EPSG:5188</option>
+                        <option disabled>-----</option>
+                        <option value="5178">EPSG:5178</option>
+                        <option value="5179">EPSG:5179</option>
+                        <option disabled>-----</option>
+                        <option value="32651">EPSG:32651</option>
+                        <option value="32652">EPSG:32652</option>
+                    </select>
+                    <label for="asset-proj" th:text="${#messages.msg('input.proj.code')}">Proj Code (Optional)</label>
+                    <input id="asset-proj" type="text"/>
+                    <div class="line"></div>
+                    <label th:inline="text">
+                        <span class="required">*</span> [[${#messages.msg('input.input.type')}]]
+                    </label>
+                    <div>
+                        <label class="button-checkbox">
+                            <input type="radio" value="kml" name="input-type-group" checked/>
+                            <span>KML</span>
+                        </label>
+                        <label class="button-checkbox">
+                            <input type="radio" value="3ds" name="input-type-group"/>
+                            <span>3DS</span>
+                        </label>
+                        <label class="button-checkbox">
+                            <input type="radio" value="dae" name="input-type-group"/>
+                            <span>DAE</span>
+                        </label>
+                        <label class="button-checkbox">
+                            <input type="radio" value="fbx" name="input-type-group"/>
+                            <span>FBX</span>
+                        </label>
+                        <label class="button-checkbox">
+                            <input type="radio" value="obj" name="input-type-group"/>
+                            <span>obj</span>
+                        </label>
+                        <label class="button-checkbox">
+                            <input type="radio" value="glb" name="input-type-group"/>
+                            <span>glb</span>
+                        </label>
+                        <label class="button-checkbox">
+                            <input type="radio" value="gltf" name="input-type-group"/>
+                            <span>glTF</span>
+                        </label>
+                        <label class="button-checkbox">
+                            <input type="radio" value="citygml" name="input-type-group"/>
+                            <span>CityGML</span>
+                        </label>
+                        <label class="button-checkbox">
+                            <input type="radio" value="indoorgml" name="input-type-group"/>
+                            <span>IndoorGML</span>
+                        </label>
+                        <label class="button-checkbox">
+                            <input type="radio" value="ifc" name="input-type-group"/>
+                            <span>IFC</span>
+                        </label>
+                        <label class="button-checkbox">
+                            <input type="radio" value="las" name="input-type-group"/>
+                            <span>LAS</span>
+                        </label>
+                        <label class="button-checkbox">
+                            <input type="radio" value="laz" name="input-type-group"/>
+                            <span>LAZ</span>
+                        </label>
+                        <label class="button-checkbox">
+                            <input type="radio" value="shp" name="input-type-group"/>
+                            <span>SHP</span>
+                        </label>
+                        <label class="button-checkbox">
+                            <input type="radio" value="geojson" name="input-type-group"/>
+                            <span>GeoJSON</span>
+                        </label>
+                    </div>
+                    <div class="line"></div>
+                    <label th:inline="text">
+                        <span class="required">*</span> [[${#messages.msg('input.output.type')}]]
+                    </label>
+                    <div>
+                        <label class="button-checkbox">
+                            <input type="radio" value="" name="output-type-group" checked/>
+                            <span>AUTO</span>
+                        </label>
+                        <label class="button-checkbox">
+                            <input type="radio" value="b3dm" name="output-type-group"/>
+                            <span>B3DM</span>
+                        </label>
+                        <label class="button-checkbox">
+                            <input type="radio" value="i3dm" name="output-type-group"/>
+                            <span>I3DM</span>
+                        </label>
+                        <label class="button-checkbox">
+                            <input type="radio" value="pnts" name="output-type-group"/>
+                            <span>PNTS</span>
+                        </label>
+                    </div>
+                    <div class="line"></div>
+                    <details>
+                        <summary th:text="${#messages.msg('input.advanced.options')}">Advanced Options ▼</summary>
+                        <label for="min-lod" th:text="${#messages.msg('input.min.lod')}"> Minimum Level of Detail</label>
+                        <input id="min-lod" type="number" min="0" max="5" value="0"/>
+                        <label for="max-lod" th:text="${#messages.msg('input.max.lod')}"> Maximum Level of Detail</label>
+                        <input id="max-lod" type="number" min="0" max="5" value="3"/>
+                        <div class="line"></div>
+                        <label for="rotate-x" th:text="${#messages.msg('input.rotate.x')}">Rotate X</label>
+                        <input id="rotate-x" type="number" min="0" max="360" value="0"/>
+                        <div class="line"></div>
+                        <label for="asset-debug-mode" th:text="${#messages.msg('input.debug.mode')}">Debug Mode</label>
+                        <select id="asset-debug-mode">
+                            <option value="false" selected>FALSE</option>
+                            <option value="true">TRUE</option>
+                        </select>
+                        <label for="altitude-column" th:text="${#messages.msg('input.altitude.column')}">Altitude Column</label>
+                        <input id="altitude-column" type="text"/>
+                        <label for="height-column" th:text="${#messages.msg('input.height.column')}">Height Column</label>
+                        <input id="height-column" type="text"/>
+                        <label for="point-ratio" th:text="${#messages.msg('input.point.ratio')}">Percentage of points to original</label>
+                        <input id="point-ratio" type="number" min="1" max="100" value="50"/>
+                    </details>
+                </div>
+                <div class="line"></div>
+                <label th:text="${#messages.msg('input.upload.file')}">Upload Files</label>
+                <div id="tileset-file-drops" class="file-drops">
+                    <label>
+                        <span id="file-name" th:text="${#messages.msg('input.drop.file.here')}">Drop files here</span>
+                        <input id="file-drop" type="file" onChange="loadDropFiles()" multiple/>
+                    </label>
+                </div>
+                <div id="upload-file-drops" ondragleave="leaveDragFiles()" ondrop="leaveDragFiles()">
+                    <label>
+                        <span id="upload-file-name" th:text="${#messages.msg('input.drop.file.here')}">Drop files here</span>
+                        <input id="upload-file-drop" type="file" onChange="loadDropFiles()" multiple/>
+                    </label>
+                </div>
+                <button onclick="requestConvert()" th:text="${#messages.msg('input.upload')}">Upload</button>
+            </div>
+        </div>
+
+
+        <!-- terrain input layer -->
+        <div id="terrain-input-layer" class="layer left top vertical" ondragover="overTerrainDragFiles()">
+            <div id="terrain-progress" class="progress">
+                <div class="progress-bar-background">
+                    <div class="progress-bar"></div>
+                </div>
+            </div>
+            <div class="input-wrap">
+                <div class="input-wrap vertical-scroll">
+                    <label for="terrain-name" th:inline="text">
+                        <span class="required">*</span> [[${#messages.msg('input.name')}]]
+                    </label>
+                    <input id="terrain-name" type="text" th:placeholder="${#messages.msg('input.enter.asset.name')}"/>
+                    <!--<div class="line"></div>
+                    <label th:text="${#messages.msg('input.input.type')}">Interpolation Type</label>
+                    <div>
+                        <label class="button-checkbox">
+                            <input type="radio" value="nearest" name="terrain-interpolation-group" checked/>
+                            <span>Nearest</span>
+                        </label>
+                        <label class="button-checkbox">
+                            <input type="radio" value="bilinear" name="terrain-interpolation-group"/>
+                            <span>Bilinear</span>
+                        </label>
+                    </div>-->
+                    <div class="line"></div>
+                    <span class="required">*</span>
+                    <label th:text="${#messages.msg('input.input.type')}">Interpolation Type</label>
+                    <div>
+                        <label class="button-checkbox">
+                            <input type="radio" value="nearest" name="terrain-interpolation-group"/>
+                            <span>Nearest</span>
+                        </label>
+                        <label class="button-checkbox">
+                            <input type="radio" value="bilinear" name="terrain-interpolation-group" checked/>
+                            <span>Bilinear</span>
+                        </label>
+                    </div>
+                    <div class="line"></div>
+                    <label for="terrain-min-depth" th:inline="text">
+                        <span class="required">*</span> [[${#messages.msg('input.terrain.min.depth')}]]
+                    </label>
+                    <input id="terrain-min-depth" type="number" min="0" max="22" value="0"/>
+                    <label for="terrain-max-depth" th:inline="text">
+                        <span class="required">*</span> [[${#messages.msg('input.terrain.max.depth')}]]
+                    </label>
+                    <input id="terrain-max-depth" type="number" min="0" max="22" value="14"/>
+                    <div class="line"></div>
+                    <span class="required">*</span>
+                    <label for="terrain-refine-intensity" th:text="${#messages.msg('input.refine.intensity')}">Refine Intensity</label>
+                    <select id="terrain-refine-intensity">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="4" selected>4</option>
+                        <option value="8">8</option>
+                        <option value="16">16</option>
+                    </select>
+                    <div class="line"></div>
+                    <details>
+                        <summary th:text="${#messages.msg('input.advanced.options')}">Advanced Options ▼</summary>
+                        <label for="terrain-debug-mode" th:text="${#messages.msg('input.debug.mode')}">Debug Mode</label>
+                        <select id="terrain-debug-mode">
+                            <option value="false" selected>FALSE</option>
+                            <option value="true">TRUE</option>
+                        </select>
+                    </details>
+                </div>
+                <div class="line"></div>
+                <label th:text="${#messages.msg('input.upload.file')}">Upload Files</label>
+                <div class="file-drops">
+                    <label>
+                        <span id="terrain-file-name"
+                              th:text="${#messages.msg('input.drop.file.here')}">Drop files here</span>
+                        <input id="terrain-file-drop" type="file" onChange="loadDropTerrainFiles()" multiple/>
+                    </label>
+                </div>
+                <div id="terrain-upload-file-drops" ondragleave="leaveTerrainDragFiles()"
+                     ondrop="leaveTerrainDragFiles()">
+                    <label>
+                        <span id="terrain-upload-file-name" th:text="${#messages.msg('input.drop.file.here')}">Drop files here</span>
+                        <input id="terrain-upload-file-drop" type="file" onChange="loadDropTerrainFiles()" multiple/>
+                    </label>
+                </div>
+                <button onclick="requestTerrainConvert()" th:text="${#messages.msg('input.upload')}">Upload</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        const toggleInputWindow = () => {
+            screenState.inputWindow = !screenState.inputWindow
+            const inputLayer = document.getElementById('input-layer-wrap')
+            inputLayer.style.display = screenState.inputWindow ? 'inline-block' : 'none'
+
+            if (!this.event?.target) {
+                return;
+            }
+            const button = this.event.target;
+            // select class toggle
+            if (screenState.inputWindow) {
+                button.classList.add('toggle')
+            } else {
+                button.classList.remove('toggle')
+            }
+        }
+
+        const selectInputAssetType = () => {
+            const assetType = document.getElementById('asset-type').value
+            const inputLayer = document.getElementById('input-layer');
+            const terrainInputLayer = document.getElementById('terrain-input-layer');
+            const simulationInputLayer = document.getElementById('simulation-input-layer');
+
+            if (assetType === 'tileset') {
+                inputLayer.style.display = 'block'
+                terrainInputLayer.style.display = 'none'
+                simulationInputLayer.style.display = 'none'
+            } else if (assetType === 'simulation') {
+                inputLayer.style.display = 'none'
+                terrainInputLayer.style.display = 'none'
+                simulationInputLayer.style.display = 'block'
+            } else {
+                inputLayer.style.display = 'none'
+                terrainInputLayer.style.display = 'block'
+                simulationInputLayer.style.display = 'none'
+            }
+        }
+
+        const overDragFiles = () => {
+            const uploadFileDrops = document.getElementById('upload-file-drops')
+            uploadFileDrops.style.display = 'block'
+        }
+
+        const leaveDragFiles = () => {
+            const uploadFileDrops = document.getElementById('upload-file-drops')
+            uploadFileDrops.style.display = 'none'
+        }
+
+        const overTerrainDragFiles = () => {
+            const uploadFileDrops = document.getElementById('terrain-upload-file-drops')
+            uploadFileDrops.style.display = 'block'
+        }
+
+        const leaveTerrainDragFiles = () => {
+            const uploadFileDrops = document.getElementById('terrain-upload-file-drops')
+            uploadFileDrops.style.display = 'none'
+        }
+
+        const overSimulationDragFiles = () => {
+            const uploadFileDrops = document.getElementById('simulation-upload-file-drops')
+            uploadFileDrops.style.display = 'block'
+        }
+
+        const leaveSimulationDragFiles = () => {
+            const uploadFileDrops = document.getElementById('simulation-upload-file-drops')
+            uploadFileDrops.style.display = 'none'
+        }
+
+        const showProgress = () => {
+            const progress = document.querySelector('#tileset-progress')
+            progress.style.display = 'block'
+        }
+        const hideProgress = () => {
+            const progress = document.querySelector('#tileset-progress')
+            progress.style.display = 'none'
+        }
+
+        const showTerrainProgress = () => {
+            const progress = document.querySelector('#terrain-progress')
+            progress.style.display = 'block'
+        }
+
+        const hideTerrainProgress = () => {
+            const progress = document.querySelector('#terrain-progress')
+            progress.style.display = 'none'
+        }
+
+        const showSimulationProgress = () => {
+            const progress = document.querySelector('#simulation-progress')
+            progress.style.display = 'block'
+        }
+
+        const hideSimulationProgress = () => {
+            const progress = document.querySelector('#simulation-progress')
+            progress.style.display = 'none'
+        }
+
+        const randomString = (length) => {
+            let result = '';
+            //let characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            let characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            let charactersLength = characters.length;
+            for (let i = 0; i < length; i++) {
+                result += characters.charAt(Math.floor(Math.random() * charactersLength));
+            }
+            return result;
+        }
+
+        const requestConvert = () => {
+            const successMessage = /*[[#{upload.success}]]*/ 'Upload completed. Conversion will start soon.'
+            const failMessage = /*[[#{upload.success}]]*/ 'Upload failed. Please try again.'
+
+            const nameElement = document.getElementById('asset-name');
+            const crsElement = document.getElementById('asset-crs');
+            inputOptions.name = nameElement.value;
+            inputOptions.crs = crsElement.value;
+            const projElement = document.getElementById('asset-proj');
+            inputOptions.proj = projElement.value;
+            inputOptions.inputFormat = document.querySelector('input[name="input-type-group"]:checked').value;
+            inputOptions.outputFormat = document.querySelector('input[name="output-type-group"]:checked').value;
+            inputOptions.minLod = document.getElementById('min-lod').value;
+            inputOptions.maxLod = document.getElementById('max-lod').value;
+            inputOptions.rotateX = document.getElementById('rotate-x').value;
+            inputOptions.debugMode = document.getElementById('asset-debug-mode').value === 'true';
+            inputOptions.altitudeColumn = document.getElementById('altitude-column').value;
+            inputOptions.heightColumn = document.getElementById('height-column').value;
+            inputOptions.pointRatio = document.getElementById('point-ratio').value;
+
+            let name = inputOptions.name;
+            if (!name || name === "") {
+                let randomName = randomString(4) + "-" + randomString(4) + "-" + randomString(4) + "-" + randomString(4);
+                if (inputOptions.inputFormat !== "") {
+                    name = inputOptions.inputFormat.toUpperCase() + "-" + randomName;
+                } else {
+                    name = randomName;
+                }
+            }
+
+            const body = {
+                name: name,
+                inputFormat: inputOptions.inputFormat,
+                outputFormat: inputOptions.outputFormat,
+                crs: inputOptions.crs,
+                projCode: inputOptions.proj,
+                rotateX: inputOptions.rotateX,
+                debugMode: inputOptions.debugMode,
+                maxLevel: inputOptions.maxLod,
+                minLevel: inputOptions.minLod,
+                altitudeColumn: inputOptions.altitudeColumn,
+                heightColumn: inputOptions.heightColumn,
+                pointRatio: inputOptions.pointRatio,
+            };
+
+            let sendData = new FormData();
+            sendData.append('body', JSON.stringify(body));
+            let files = inputOptions.files;
+            if (files == null || files.length < 1) {
+                alert("Please choose files.");
+                return;
+            }
+            for (let i = 0; i < files.length; i++) {
+                let file = files[i];
+                sendData.append('files', file);
+            }
+            inputOptions.convertState = true;
+            showProgress();
+
+            const xhr = new XMLHttpRequest();
+            inputOptions.uploadProgress = 0;
+            //let uploadProgress = 0
+            // 업로드 진행 이벤트 처리기
+            const handleProgress = (event) => {
+                if (event.lengthComputable) {
+                    inputOptions.uploadProgress = Math.round((event.loaded / event.total) * 100);
+                    progress.style.width = `${inputOptions.uploadProgress}%`
+                }
+            };
+
+            const progress = document.querySelector('#tileset-progress .progress-bar')
+
+            xhr.upload.addEventListener("progress", handleProgress)
+            xhr.addEventListener("loadstart", () => {
+                inputOptions.uploadProgress = 0;
+                progress.style.width = `${inputOptions.uploadProgress}%`
+            })
+            xhr.addEventListener("loadend", () => {
+                inputOptions.uploadProgress = 100;
+                progress.style.width = `${inputOptions.uploadProgress}%`
+            })
+            xhr.addEventListener("load", () => {
+                inputOptions.convertState = false;
+                hideProgress();
+                inputOptions.uploadProgress = 100;
+                progress.style.width = `${inputOptions.uploadProgress}%`
+            })
+            xhr.addEventListener("error", () => {
+                //alert(failMessage);
+                addPush(failMessage, "fail");
+                inputOptions.convertState = false;
+                hideProgress();
+                inputOptions.uploadProgress = 0;
+            })
+
+            // 요청
+            xhr.open("POST", "/api/tiler")
+            xhr.send(sendData)
+            xhr.onload = () => {
+                if (xhr.status === 200) {
+                    const res = JSON.parse(xhr.response);
+                    console.log(res);
+                    addPush(successMessage);
+                    //loadAssets();
+                } else {
+                    addPush(failMessage, "fail");
+                    console.log(xhr.status, xhr.statusText);
+                }
+                inputOptions.convertState = false;
+                hideProgress();
+            };
+        }
+
+        const requestTerrainConvert = () => {
+            const successMessage = /*[[#{upload.success}]]*/ 'Upload completed. Conversion will start soon.'
+            const failMessage = /*[[#{upload.success}]]*/ 'Upload failed. Please try again.'
+
+            const nameElement = document.getElementById('terrain-name');
+            inputOptions.name = nameElement.value
+            inputOptions.minLod = document.getElementById('terrain-min-depth').value;
+            inputOptions.maxLod = document.getElementById('terrain-max-depth').value;
+            inputOptions.debugMode = document.getElementById('terrain-debug-mode').value === 'true';
+            inputOptions.refineIntensity = document.getElementById('terrain-refine-intensity').value;
+            inputOptions.interpolationType = document.querySelector('input[name="terrain-interpolation-group"]:checked').value;
+
+            let name = inputOptions.name;
+            if (!name || name === "") {
+                let randomName = randomString(4) + "-" + randomString(4) + "-" + randomString(4) + "-" + randomString(4);
+                name = "terrain" + "-" + randomName;
+            }
+
+            const body = {
+                name: name,
+                debugMode: inputOptions.debugMode,
+                maxLevel: inputOptions.maxLod,
+                minLevel: inputOptions.minLod,
+                refineIntensity: inputOptions.refineIntensity,
+                interpolationType: inputOptions.interpolationType,
+            };
+
+            let sendData = new FormData();
+            sendData.append('body', JSON.stringify(body));
+            let files = inputOptions.files;
+            if (files == null || files.length < 1) {
+                alert("Please choose files.");
+                return;
+            }
+            for (let i = 0; i < files.length; i++) {
+                let file = files[i];
+                sendData.append('files', file);
+            }
+            inputOptions.convertState = true;
+            showTerrainProgress();
+
+            const xhr = new XMLHttpRequest();
+            inputOptions.uploadTerrainProgress = 0;
+            //let uploadProgress = 0
+            // 업로드 진행 이벤트 처리기
+            const handleProgress = (event) => {
+                if (event.lengthComputable) {
+                    inputOptions.uploadTerrainProgress = Math.round((event.loaded / event.total) * 100);
+                    progress.style.width = `${inputOptions.uploadTerrainProgress}%`
+                }
+            };
+
+            const progress = document.querySelector('#terrain-progress .progress-bar')
+
+            xhr.upload.addEventListener("progress", handleProgress)
+            xhr.addEventListener("loadstart", () => {
+                inputOptions.uploadTerrainProgress = 0;
+                progress.style.width = `${inputOptions.uploadTerrainProgress}%`
+            })
+            xhr.addEventListener("loadend", () => {
+                inputOptions.uploadTerrainProgress = 100;
+                progress.style.width = `${inputOptions.uploadTerrainProgress}%`
+            })
+            xhr.addEventListener("load", () => {
+                inputOptions.convertState = false;
+                hideTerrainProgress();
+                inputOptions.uploadTerrainProgress = 100;
+                progress.style.width = `${inputOptions.uploadTerrainProgress}%`
+            })
+            xhr.addEventListener("error", () => {
+                //alert(failMessage);
+                addPush(failMessage, "fail");
+                inputOptions.convertState = false;
+                hideTerrainProgress();
+                inputOptions.uploadTerrainProgress = 0;
+            })
+
+            // 요청
+            xhr.open("POST", "/api/terrainer")
+            xhr.send(sendData)
+            xhr.onload = () => {
+                if (xhr.status === 200) {
+                    const res = JSON.parse(xhr.response);
+                    console.log(res);
+                    addPush(successMessage);
+                    //loadAssets();
+                } else {
+                    addPush(failMessage, "fail");
+                    console.log(xhr.status, xhr.statusText);
+                }
+                inputOptions.convertState = false;
+                hideTerrainProgress();
+            };
+        }
+
+        const requestSimulationConvert = () => {
+            const successMessage = /*[[#{upload.success}]]*/ 'Upload completed. Conversion will start soon.'
+            const failMessage = /*[[#{upload.success}]]*/ 'Upload failed. Please try again.'
+
+            const nameElement = document.getElementById('simulation-asset-name');
+            inputOptions.name = nameElement.value;
+            const projElement = document.getElementById('simulation-asset-proj');
+            inputOptions.proj = projElement.value;
+
+            let name = inputOptions.name;
+            if (!name || name === "") {
+                let randomName = randomString(4) + "-" + randomString(4) + "-" + randomString(4) + "-" + randomString(4);
+                name = "simulation" + "-" + randomName;
+            }
+
+            const body = {
+                name: name,
+                projection: inputOptions.proj,
+            };
+
+            let sendData = new FormData();
+            sendData.append('body', JSON.stringify(body));
+            let files = inputOptions.files;
+            if (files == null || files.length < 1) {
+                alert("Please choose files.");
+                return;
+            }
+            for (let i = 0; i < files.length; i++) {
+                let file = files[i];
+                sendData.append('files', file);
+            }
+            inputOptions.convertState = true;
+            showSimulationProgress();
+
+            const xhr = new XMLHttpRequest();
+            inputOptions.uploadSimulationProgress = 0;
+            // 업로드 진행 이벤트 처리기
+            const handleProgress = (event) => {
+                if (event.lengthComputable) {
+                    inputOptions.uploadSimulationProgress = Math.round((event.loaded / event.total) * 100);
+                    progress.style.width = `${inputOptions.uploadSimulationProgress}%`
+                }
+            };
+
+            const progress = document.querySelector('#simulation-progress .progress-bar')
+            xhr.upload.addEventListener("progress", handleProgress)
+            xhr.addEventListener("loadstart", () => {
+                inputOptions.uploadSimulationProgress = 0;
+                progress.style.width = `${inputOptions.uploadSimulationProgress}%`
+            })
+            xhr.addEventListener("loadend", () => {
+                inputOptions.uploadSimulationProgress = 100;
+                progress.style.width = `${inputOptions.uploadSimulationProgress}%`
+            })
+            xhr.addEventListener("load", () => {
+                inputOptions.convertState = false;
+                hideSimulationProgress();
+                inputOptions.uploadSimulationProgress = 100;
+                progress.style.width = `${inputOptions.uploadSimulationProgress}%`
+            })
+            xhr.addEventListener("error", () => {
+                //alert(failMessage);
+                addPush(failMessage, "fail");
+                inputOptions.convertState = false;
+                hideSimulationProgress();
+                inputOptions.uploadSimulationProgress = 0;
+            })
+
+            // 요청
+            xhr.open("POST", "/api/simulation")
+            xhr.send(sendData)
+            xhr.onload = () => {
+                if (xhr.status === 200) {
+                    const res = JSON.parse(xhr.response);
+                    console.log(res);
+                    addPush(successMessage);
+                    //loadAssets();
+                } else {
+                    addPush(failMessage, "fail");
+                    console.log(xhr.status, xhr.statusText);
+                }
+                inputOptions.convertState = false;
+                hideSimulationProgress();
+            };
+        }
+
+        const loadDropFiles = () => {
+            leaveDragFiles();
+            const fileNameElement = document.getElementById('file-name');
+            const files = this.event.target.files;
+            if (files.length > 1) {
+                inputOptions.fileName = files[0].name + " and " + (files.length - 1) + " other files";
+            } else {
+                inputOptions.fileName = files[0].name;
+            }
+            fileNameElement.textContent = inputOptions.fileName;
+            inputOptions.files = files;
+
+            //let files = inputOptions.files;
+            let inferInputFormat = inputOptions.inputFormats.find((format) => {
+                for (let i = 0; i < files.length; i++) {
+                    let file = files[i];
+                    let ext = file.name.split('.').pop();
+                    if (format === ext) {
+                        return true;
+                    }
+                }
+            });
+
+            if (inferInputFormat === 'gml') {
+                inferInputFormat = 'citygml';
+            } else if (inferInputFormat === 'las' || inferInputFormat === 'laz') {
+                inferInputFormat = 'las';
+            }
+            const selectedInputFormat = document.querySelector('input[name="input-type-group"][value="' + inferInputFormat + '"]');
+            if (inferInputFormat) {
+                inputOptions.inputFormat = inferInputFormat;
+                selectedInputFormat.checked = true;
+            }
+        }
+
+        const loadDropTerrainFiles = () => {
+            leaveTerrainDragFiles();
+            const fileNameElement = document.getElementById('terrain-file-name');
+            const files = this.event.target.files;
+            if (files.length > 1) {
+                inputOptions.fileName = files[0].name + " and " + (files.length - 1) + " other files";
+            } else {
+                inputOptions.fileName = files[0].name;
+            }
+            fileNameElement.textContent = inputOptions.fileName;
+            inputOptions.files = files;
+        }
+
+        const loadDropSimulationFiles = () => {
+            leaveTerrainDragFiles();
+            const fileNameElement = document.getElementById('simulation-file-name');
+            const files = this.event.target.files;
+            if (files.length > 1) {
+                inputOptions.fileName = files[0].name + " and " + (files.length - 1) + " other files";
+            } else {
+                inputOptions.fileName = files[0].name;
+            }
+            fileNameElement.textContent = inputOptions.fileName;
+            inputOptions.files = files;
+        }
+    </script>
+</th:block>
+</html>

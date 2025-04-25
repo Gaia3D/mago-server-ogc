@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<th:block th:fragment="push">
+    <style>
+        #conversion-layer {
+            background-color: var(--background-color);
+            border-radius: 12px;
+            padding: 10px 10px;
+            margin-bottom: 5px;
+            opacity: 0.9;
+            margin-right: 190px;
+        }
+
+        #conversion-layer h3 {
+            margin: 0 0 10px 5px;
+            font-size: 12px;
+            font-weight: 600;
+            width: 300px;
+            text-align: left;
+        }
+
+        .scroll-layer {
+            height: 100px;
+            overflow-y: scroll;
+            text-align: left;
+            width: 250px;
+        }
+
+        #process-list > li {
+            animation: 0.5s pushFadeIn;
+            background: var(--button);
+            border: none;
+            padding: 7px 11px;
+            margin-bottom: 6px;
+            font-size: 10px;
+            font-weight: 500;
+            position: relative;
+            opacity: 0.9;
+            cursor: pointer;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            word-wrap: break-word;
+            white-space: nowrap;
+        }
+        #process-list > li:last-child {
+            margin-bottom: 0;
+        }
+        #process-list > li.remove {
+            animation: 2.0s pushFadeOut;
+            animation-fill-mode: forwards;
+            animation-timing-function: ease-in-out;
+        }
+        #process-list > li > div.glass {
+            background: rgba(255, 255, 255, 0.37);
+            border-radius: 16px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            position: absolute;
+        }
+        #process-list > li > span.close {
+            position: absolute;
+            right: 0;
+            top: 0;
+            cursor: pointer;
+            padding: 14px 15px;
+        }
+    </style>
+</th:block>
+</html>

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<th:block th:fragment="push">
+    <style>
+        ol.notify-list {
+            width: 500px;
+        }
+
+        ol.notify-list > li {
+            animation: 0.5s pushFadeIn;
+            background: var(--button);
+            border-radius: 13px;
+            padding: 12px 13px;
+            min-width: 300px;
+            margin-bottom: 6px;
+            font-size: 11px;
+            font-weight: 500;
+            /*float: right;*/
+            position: relative;
+            opacity: 0.9;
+            cursor: pointer;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            word-wrap: break-word;
+            white-space: nowrap;
+        }
+
+        ol.notify-list > li:last-child {
+            margin-bottom: 0;
+        }
+
+        ol.notify-list > li.remove {
+            animation: 2.0s pushFadeOut;
+            animation-fill-mode: forwards;
+            animation-timing-function: ease-in-out;
+        }
+
+        ol.notify-list > li > div.glass {
+            background: rgba(255, 255, 255, 0.37);
+            border-radius: 16px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            position: absolute;
+        }
+
+        ol.notify-list > li > span.close {
+            position: absolute;
+            right: 0;
+            top: 0;
+            cursor: pointer;
+            padding: 14px 15px;
+        }
+    </style>
+    <div id="push-layer">
+        <ol id="push-list" class="notify-list"></ol>
+    </div>
+    <script>
+        const addPush = (message, status) => {
+            const pushListElement = document.getElementById("push-list");
+
+            const liElement = document.createElement('li');
+            liElement.classList.add("layer");
+            liElement.title = message;
+            liElement.onclick = () => {
+                liElement.classList.add("remove");
+                setTimeout(() => {
+                    pushListElement.removeChild(liElement);
+                }, 2000);
+            }
+
+            if (status === "success") {
+                liElement.textContent = "🟢 " + message;
+            } else if (status === "fail") {
+                liElement.textContent = "🔴 " + message;
+            } else {
+                liElement.textContent = "🔔 " + message;
+            }
+
+            pushListElement.prepend(liElement);
+
+            setTimeout(() => {
+                liElement.classList.add("remove");
+                setTimeout(() => {
+                    pushListElement.removeChild(liElement);
+                }, 2000);
+            }, 30000)
+            console.log("test");
+        }
+    </script>
+</th:block>
+</html>

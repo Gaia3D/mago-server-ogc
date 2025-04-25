@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Mago-Server</title>
+    <link rel="stylesheet" type="text/css" th:href="@{styles/css-init.css}"/>
+    <link rel="stylesheet" type="text/css" th:href="@{styles/map-common.css}"/>
+    <link rel="stylesheet" type="text/css" th:href="@{styles/cesium-custom.css}"/>
+    <link rel="stylesheet" type="text/css" th:href="@{externals/cesium/Widgets/widgets.css}"/>
+    <script src="/externals/cesium/Cesium.js" ></script>
+    <script src="/scripts/magoObjectSelection.js"></script>
+    <script src="/scripts/magoObjectInfo.js"></script>
+</head>
+<body>
+<div id="cesiumContainer"></div>
+<div class="float-layer center top" style="z-index: 14">
+    <th:block th:replace="~{components/push-component :: push}"></th:block>
+</div>
+<div class="float-layer right bottom">
+    <th:block th:replace="~{components/conversion-component :: push}"></th:block>
+</div>
+<div class="float-layer left top horizontal no-height">
+    <div id="nav-layer" class="layer left top vertical">
+        <button class="transparency icon" disabled>
+            <img class="icon" th:src="@{images/mago-logo.png}" alt="test"/>
+        </button>
+        <button class="transparency icon" onclick="toggleListWindow()">
+            <img class="icon" th:src="@{images/menu.png}" alt="test"/>
+        </button>
+        <button class="transparency icon" onclick="toggleDarkMode()">
+            <img class="icon" th:src="@{images/dark-and-light.png}" alt="test"/>
+        </button>
+    </div>
+    <div class="left top horizontal no-height">
+        <th:block th:replace="~{components/list-component :: list(${useConverting})}"></th:block>
+        <th:block th:replace="~{components/input-component :: input}"></th:block>
+        <th:block th:replace="~{components/info-component :: info}"></th:block>
+    </div>
+</div>
+<div class="float-layer right bottom vertical">
+    <div id="hover-map" class="right top horizontal">
+        <button class="transparency image-icon" onclick="changeBaseMap(basemap[0])">
+            <img class="image-icon" th:src="@{images/map/carto-dark.png}" alt="test"/>
+            <span>Dark</span>
+        </button>
+        <button class="transparency image-icon" onclick="changeBaseMap(basemap[1])">
+            <img class="image-icon" th:src="@{images/map/carto-light.png}" alt="test"/>
+            <span>Light</span>
+        </button>
+        <button class="transparency image-icon" onclick="changeBaseMap(basemap[2])">
+            <img class="image-icon" th:src="@{images/map/default.png}" alt="test"/>
+            <span>Carto</span>
+        </button>
+        <button class="transparency image-icon" onclick="changeBaseMap(basemap[3])">
+            <img class="image-icon" th:src="@{images/map/osm.png}" alt="test"/>
+            <span>OSM</span>
+        </button>
+    </div>
+    <th:block th:replace="~{mini-map :: index}"></th:block>
+</div>
+<div class="float-layer left bottom vertical" style="z-index: 5">
+    <div id="position-info">[<span>0.0, 0.0</span>]</div>
+    <div id="time-info">[<span>0000-00-00T00:00:00Z</span>]</div>
+    <div id="version-info" th:text="${version}"></div>
+</div>
+<div class="float-layer right top vertical no-height">
+    <div id="zoom-layer" class="layer vertical">
+        <div class="button-group">
+            <button title="Zoom In" onclick="zoomIn()">
+                <img class="icon" th:src="@{images/plus.png}" alt="">
+            </button>
+            <button title="Zoom Out" onclick="zoomOut()">
+                <img class="icon" th:src="@{images/minus.png}" alt="">
+            </button>
+        </div>
+    </div>
+    <div id="tileset-layer" class="layer vertical">
+        <div class="button-group">
+            <button id="object-grid-layer" title="Grid Layer" onclick="toggleGridLayer()">
+                <img class="icon" th:src="@{images/test.png}" alt="">
+            </button>
+            <button id="object-terrain-grid-layer" title="Terrain Grid Layer" onclick="toggleTerrainGridLayer()">
+                <img class="icon yellow" th:src="@{images/terrain-grid.png}" alt="">
+            </button>
+            <button id="object-wire-frame" title="Wire-Frame" onclick="toggleWireFrame(false)">
+                <img class="icon" th:src="@{images/wireframe.png}" alt="">
+            </button>
+            <button id="object-terrain-wire-frame" title="Terrain Wire-Frame" onclick="toggleTerrainWireFrame(false)">
+                <img class="icon yellow" th:src="@{images/wireframe.png}" alt="">
+            </button>
+        </div>
+        <div class="line"></div>
+        <div class="button-group">
+            <button id="object-selection" title="Object Selection" onclick="toggleSelection()">
+                <img class="icon" th:src="@{images/select.png}" alt="">
+            </button>
+            <button id="object-information" title="Object Information" onclick="toggleInformation()" disabled>
+                <img class="icon" th:src="@{images/information.png}" alt="">
+            </button>
+        </div>
+    </div>
+    <div id="data-info-layer" class="layer">
+        <div class="table-wrap">
+            <table id="data-info-table">
+                <thead>
+                    <tr>
+                        <th>Key</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<script th:inline="javascript">
+    let viewer = null;
+    const initialPosition = {
+        lon: 127.179123,
+        lat: 37.619481,
+        alt: 1000
+    }
+
+    const zoomIn = () => {
+        const ellipsoid = viewer.scene.globe.ellipsoid
+        const camera = viewer.camera
+        const position = camera.position
+        const height = ellipsoid.cartesianToCartographic(position).height
+        const factor = height / 2
+        camera.zoomIn(factor)
+    }
+    const zoomOut = () => {
+        const ellipsoid = viewer.scene.globe.ellipsoid
+        const camera = viewer.camera
+        const position = camera.position
+        const height = ellipsoid.cartesianToCartographic(position).height
+        const factor = height / 2
+        camera.zoomOut(factor)
+    }
+
+    const resetPosition = () => {
+        viewer.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(initialPosition.lon, initialPosition.lat, initialPosition.alt),
+            orientation: {
+                heading: Cesium.Math.toRadians(0.0),
+                pitch: Cesium.Math.toRadians(-90.0)
+            },
+            duration: 1
+        })
+    }
+
+    const alignNorth = () => {
+        viewer.camera.flyTo({
+            destination: viewer.camera.positionWC,
+            orientation: {
+                heading: Cesium.Math.toRadians(0.0),
+                pitch: viewer.camera.pitch,
+                roll: viewer.camera.roll
+            },
+            duration: 1
+        })
+    }
+
+    const basemap = [
+        {
+            index: 0,
+            name: "dark",
+            url: "https://a.basemaps.cartocdn.com/dark_all/",
+            image: "images/map/carto-dark.png",
+            color: "#0a0a0a"
+        },
+        {
+            index: 1,
+            name: "light",
+            url: "https://a.basemaps.cartocdn.com/light_all/",
+            image: "images/map/carto-light.png",
+            color: "#eef3ef"
+        },
+        {
+            index: 2,
+            name: "open-street-map",
+            url: "https://a.basemaps.cartocdn.com/rastertiles/voyager",
+            image: "images/map/default.png",
+            color: "#f2efe9"
+        },
+        {
+            index: 3,
+            name: "open-street-map",
+            url: "https://a.tile.openstreetmap.org/",
+            image: "images/map/osm.png",
+            color: "#f2efe9"
+        },
+    ]
+
+    const screenState = {
+        listWindow: true,
+        inputWindow: true,
+        debugShowBoundingVolume: false,
+        debugWireframe: false,
+        debugShowGeometricError: false,
+        debugShowMemoryUsage: false,
+        debugShowUrl: false,
+        debugColorizeTiles: false,
+        selection: false,
+        information: false,
+        pressedCtrl: false,
+        pressedShift: false,
+        enableShadow: false,
+        autoRefresh: false,
+        autoRefreshInterval: null,
+    }
+
+    const inputOptions = {
+        name: '',
+        files: [],
+        crs: '3857',
+        inputFormat: 'kml',
+        inputFormats: ['kml', '3ds', 'dae', 'fbx', 'obj', 'glb', 'gltf', 'gml', 'citygml', 'indoorgml', 'ifc', 'las', 'laz', 'shp', 'geojson'],
+        outputFormat: 'b3dm',
+        outputFormats: ['b3dm', 'i3dm', 'pnts'],
+        fileName: '',
+        convertState: false,
+        uploadProgress: 0,
+        uploadTerrainProgress: 0,
+        uploadSimulationProgress: 0
+    }
+
+    const padDigits = (number, digits) => {
+        return Array(Math.max(digits - String(number).length + 1, 0)).join(0) + number;
+    }
+
+    const initViewer = () => {
+        viewer = new Cesium.Viewer('cesiumContainer', {
+            geocoder: false,
+            baseLayerPicker: false,
+            homeButton: false,
+            infoBox: false,
+            sceneModePicker: false,
+            animation: false,
+            timeline: false,
+            navigationHelpButton: false,
+            selectionIndicator: false,
+            fullscreenButton: false,
+            sceneMode: Cesium.SceneMode.SCENE3D,
+            baseLayer : false,
+            shouldAnimate: true,
+            //projectionPicker: true,
+        })
+        viewer.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(initialPosition.lon, initialPosition.lat, initialPosition.alt),
+            orientation: {
+                heading: Cesium.Math.toRadians(0.0),
+                pitch: Cesium.Math.toRadians(-90.0)
+            },
+            duration: 0
+        })
+        viewer.clock.currentTime = Cesium.JulianDate.fromDate(new Date("2024-06-01T23:00:00Z"));
+        viewer.clock.multiplier = 1;
+        viewer.clock.canAnimate = true;
+        viewer.clock.shouldAnimate = true;
+
+        viewer._cesiumWidget._creditContainer.style.display = "none";
+        viewer.scene.globe.depthTestAgainstTerrain = false;
+        viewer.scene.postProcessStages.fxaa.enabled = true;
+        viewer.scene.globe.enableLighting = false;
+
+        const positionInfo = document.querySelector("#position-info > span");
+        const positionHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+        positionHandler.setInputAction((movement) => {
+            const cartesian = viewer.camera.pickEllipsoid(movement.endPosition, viewer.scene.globe.ellipsoid);
+            if (cartesian) {
+                const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+                const longitudeString = Cesium.Math.toDegrees(cartographic.longitude).toFixed(6);
+                const latitudeString = Cesium.Math.toDegrees(cartographic.latitude).toFixed(6);
+                positionInfo.textContent = ` ${longitudeString}, ${latitudeString} `;
+
+                const height = viewer.scene.globe.getHeight(cartographic);
+                if (height) {
+                    const heightString = height.toFixed(2);
+                    positionInfo.textContent += ` (${heightString}m) `;
+                }
+            }
+        }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+        setInterval(() => {
+            const timeInfo = document.querySelector("#time-info > span");
+            const date = Cesium.JulianDate.toDate(viewer.clock.currentTime);
+            const year = date.getFullYear();
+            const month = padDigits(date.getMonth() + 1, 2);
+            const day = padDigits(date.getDate(), 2);
+            const hour = padDigits(date.getHours(), 2);
+            const minute = padDigits(date.getMinutes(), 2);
+            const second = padDigits(date.getSeconds(), 2);
+            timeInfo.textContent = ` ${year}-${month}-${day}T${hour}:${minute}:${second}Z `;
+        }, 1000)
+
+
+        initMiniViewer();
+        toggleGridLayer();
+        loadAssets()
+        toggleListWindow();
+        toggleInputWindow();
+        selectInputAssetType();
+    }
+
+    const toggleGridLayer = () => {
+        const button = document.getElementById("object-grid-layer");
+        button.classList.toggle('selected');
+
+        const findGridLayer = viewer.scene.imageryLayers._layers.find((layer) => {
+            return layer.imageryProvider instanceof Cesium.GridImageryProvider
+        });
+
+        if (findGridLayer) {
+            findGridLayer.show = !findGridLayer.show
+        } else {
+            const grid = new Cesium.GridImageryProvider({
+                cells: 4,
+                color : Cesium.Color.WHITE.withAlpha(0.5),
+                glowColor : Cesium.Color.BLACK.withAlpha(0.1),
+                glowWidth : 4,
+                backgroundColor: Cesium.Color.BLACK.withAlpha(0.05),
+                maximumLevel: 5
+            })
+            viewer.scene.imageryLayers.addImageryProvider(grid)
+        }
+    }
+
+    const toggleTerrainGridLayer = () => {
+        const button = document.getElementById("object-terrain-grid-layer");
+        button.classList.toggle('selected');
+
+        const findTerrainGridLayer = viewer.scene.imageryLayers._layers.find((layer) => {
+            return layer.imageryProvider instanceof Cesium.TileCoordinatesImageryProvider
+        });
+
+        console.log(findTerrainGridLayer)
+        if (findTerrainGridLayer) {
+            findTerrainGridLayer.show = !findTerrainGridLayer.show
+        } else {
+            const grid = new Cesium.TileCoordinatesImageryProvider()
+            viewer.scene.imageryLayers.addImageryProvider(grid)
+        }
+    }
+
+    const removeAllLayers = () => {
+        const layers = viewer.scene.imageryLayers._layers;
+        layers.forEach(layer => {
+            const imageryProvider = layer.imageryProvider;
+            if (imageryProvider instanceof Cesium.GridImageryProvider) {
+                // do nothing
+            } else if (imageryProvider instanceof Cesium.TileCoordinatesImageryProvider) {
+                // do nothing
+            } else {
+                viewer.scene.imageryLayers.remove(layer);
+            }
+        })
+    }
+
+    const changeBaseMap = async (map) => {
+        let url = map.url
+
+        viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString(map.color)
+        const layers = viewer.scene.imageryLayers
+        removeAllLayers();
+        const osm = new Cesium.OpenStreetMapImageryProvider({
+            url: url,
+            minimumLevel: 0,
+            maximumLevel: 19,
+        })
+        layers.addImageryProvider(osm)
+
+        const findGridLayer = viewer.scene.imageryLayers._layers.find((layer) => {
+            return layer.imageryProvider instanceof Cesium.GridImageryProvider
+        })
+        if (findGridLayer) {
+            layers.raiseToTop(findGridLayer)
+        }
+
+        const findTerrainGridLayer = viewer.scene.imageryLayers._layers.find((layer) => {
+            return layer.imageryProvider instanceof Cesium.TileCoordinatesImageryProvider
+        })
+        if (findTerrainGridLayer) {
+            layers.raiseToTop(findTerrainGridLayer)
+        }
+
+        changeBaseMapForMinimap(map);
+
+        setUnselected();
+        let target = document.querySelectorAll('#hover-map button')[map.index];
+        target.classList.add ('selected');
+    }
+
+
+    const changeBaseMapForMinimap = (map) => {
+        if (miniViewer) {
+            const url = map.url
+            miniViewer.scene.globe.baseColor = Cesium.Color.fromCssColorString(map.color)
+
+            const layers = miniViewer.scene.imageryLayers
+            layers.removeAll()
+
+            const osm = new Cesium.OpenStreetMapImageryProvider({
+                url: url,
+                minimumLevel: 0,
+                maximumLevel: 19,
+            })
+            layers.addImageryProvider(osm)
+        }
+    }
+
+    const toggleSelection = () => {
+        const informationButton = document.getElementById("object-information");
+        const selectEvent = () => {
+            informationButton.removeAttribute('disabled');
+        }
+        const deselectEvent = () => {
+            informationButton.setAttribute('disabled', true);
+        }
+        const state = screenState.selection;
+        const button = document.getElementById("object-selection");
+        clearObjectTool();
+        screenState.selection = !state;
+        if (screenState.selection) {
+            button.classList.add('selected');
+            onObjectSelection(viewer, selectEvent, deselectEvent);
+        } else {
+            button.classList.remove('selected');
+            offObjectSelection(viewer);
+            deselectObject(deselectEvent);
+        }
+    }
+
+    const printObjectInfo = (objectList) => {
+        console.log(objectList);
+
+        const objectInfoLayer = document.getElementById("data-info-layer");
+        const table = document.getElementById("data-info-table");
+        const tbody = table.querySelector("tbody");
+        tbody.innerHTML = '';
+
+        if (objectList === null || objectList.length < 1) {
+            objectInfoLayer.style.display = 'none';
+        } else {
+            objectInfoLayer.style.display = 'block';
+        }
+
+        objectList.forEach(data => {
+            const tr = document.createElement('tr');
+            const td1 = document.createElement('td');
+            const td2 = document.createElement('td');
+            td1.textContent = data.key;
+            td2.textContent = data.value;
+            tr.appendChild(td1);
+            tr.appendChild(td2);
+            tbody.appendChild(tr);
+        });
+    }
+
+    const toggleInformation = () => {
+        const state = screenState.information;
+        const button = document.getElementById("object-information");
+        clearObjectTool();
+        screenState.information = !state;
+        if (screenState.information) {
+            button.classList.add('selected');
+            onObjectInfo(viewer, onMousePointerCursor, offMousePointerCursor, printObjectInfo);
+        } else {
+            button.classList.remove('selected');
+            document.getElementById("data-info-layer").style.display = 'none';
+            offObjectInfo(viewer);
+        }
+    }
+
+    const onMousePointerCursor = () => {
+        const button = document.getElementById("cesiumContainer");
+        button.classList.add('cursor-pointer');
+    }
+    const offMousePointerCursor = () => {
+        const button = document.getElementById("cesiumContainer");
+        button.classList.remove('cursor-pointer');
+    }
+
+    const onMouseMoveCursor = () => {
+        const button = document.getElementById("cesiumContainer");
+        button.classList.add('cursor-move');
+    }
+    const offMouseMoveCursor = () => {
+        const button = document.getElementById("cesiumContainer");
+        button.classList.remove('cursor-move');
+    }
+
+    const onMouseRotateCursor = () => {
+        const button = document.getElementById("cesiumContainer");
+        button.classList.add('cursor-rotate');
+    }
+    const offMouseRotateCursor = () => {
+        const button = document.getElementById("cesiumContainer");
+        button.classList.remove('cursor-rotate');
+    }
+
+    const onMouseScaleCursor = () => {
+        const button = document.getElementById("cesiumContainer");
+        button.classList.add('cursor-scale');
+    }
+    const offMouseScaleCursor = () => {
+        const button = document.getElementById("cesiumContainer");
+        button.classList.remove('cursor-scale');
+    }
+
+    const clearObjectTool = (withSelection) => {
+        offObjectInfo(viewer);
+        offObjectSelection(viewer);
+        screenState.information = false;
+        if (withSelection) {
+            screenState.selection = false;
+            const button0 = document.getElementById("object-selection");
+            button0.classList.remove('selected');
+        }
+        const button4 = document.getElementById("object-information");
+        button4.classList.remove('selected');
+        document.getElementById("data-info-layer").style.display = 'none';
+    }
+
+    const toggleWireFrame = () => {
+        const button = document.getElementById("object-wire-frame");
+        button.classList.toggle('selected');
+        screenState.debugWireframe = !screenState.debugWireframe;
+        const primitives = viewer.scene.primitives._primitives;
+        primitives.forEach(primitive => {
+            if (primitive instanceof Cesium.Cesium3DTileset) {
+                primitive.debugWireframe = screenState.debugWireframe;
+            }
+        })
+    }
+
+    const toggleTerrainWireFrame = () => {
+        const button = document.getElementById("object-terrain-wire-frame");
+        button.classList.toggle('selected');
+        screenState.debugTerrainWireframe = !screenState.debugTerrainWireframe;
+        viewer.scene.globe._surface._tileProvider._debug.wireframe = screenState.debugTerrainWireframe;
+    }
+
+    const setUnselected = () => {
+        const buttons = document.querySelectorAll("#hover-map button");
+        buttons.forEach(button => {
+            button.classList.remove('selected');
+        })
+    }
+
+    const toggleDarkMode = () => {
+        const mode = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
+        document.body.dataset.theme = mode;
+        document.documentElement.setAttribute('color-theme', mode);
+    }
+
+    const initTheme = () => {
+        const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (isDarkMode) {
+            const mode = 'dark';
+            document.body.dataset.theme = mode;
+            document.documentElement.setAttribute('color-theme', mode);
+            changeBaseMap(basemap[0]);
+        } else {
+            const mode = 'light';
+            document.body.dataset.theme = mode;
+            document.documentElement.setAttribute('color-theme', mode);
+            changeBaseMap(basemap[1]);
+        }
+    }
+
+    // Ctrl Key Event
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Control') {
+            screenState.pressedCtrl = true;
+        } else if (event.key === 'Shift') {
+            screenState.pressedShift = true;
+        } else if (event.key === 'Escape') {
+            clearObjectTool(true);
+        }
+    })
+    initViewer();
+    initTheme();
+</script>
+</body>
+</html>

@@ -28,6 +28,3 @@ java -jar mago-server-x.x.x.jar
 ```
 
 Connect to `http://localhost:9090`
-
-
-"# mago-server-ogc" 

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<th:block th:fragment="index">
+    <style>
+        #miniCesiumContainer {
+            height: 120px;
+            width: 180px;
+            opacity: 0.9;
+            border-radius: 12px;
+            background: none;
+            overflow: hidden;
+            padding: 0;
+            cursor: pointer;
+            position: relative;
+        }
+        .cross-hair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #7b7b7b;
+            z-index: 999;
+            font-size: 12px;
+        }
+    </style>
+    <div id="miniCesiumContainer" class="layer">
+        <span class="cross-hair">✛</span>
+    </div>
+    <script>
+        let miniViewer = null;
+        const initMiniViewer = () => {
+            miniViewer = new Cesium.Viewer('miniCesiumContainer', {
+                geocoder: false,
+                baseLayerPicker: false,
+                homeButton: false,
+                infoBox: false,
+                sceneModePicker: false,
+                animation: false,
+                timeline: false,
+                navigationHelpButton: false,
+                selectionIndicator: false,
+                fullscreenButton: false,
+                sceneMode: Cesium.SceneMode.SCENE2D,
+                baseLayer : false,
+            });
+            viewer.camera.changed.addEventListener(syncMiniMap);
+            viewer.camera.percentageChanged = 0.01;
+            miniViewer.scene.screenSpaceCameraController.enableRotate = false;
+            miniViewer.scene.screenSpaceCameraController.enableTranslate = false;
+            miniViewer.scene.screenSpaceCameraController.enableZoom = false;
+            miniViewer.scene.screenSpaceCameraController.enableTilt = false;
+            miniViewer.scene.screenSpaceCameraController.enableLook = false;
+
+            miniViewer.clock.currentTime = Cesium.JulianDate.fromDate(new Date("2024-06-01T23:00:00Z"));
+            miniViewer.clock.multiplier = 1;
+            miniViewer.clock.canAnimate = true;
+            miniViewer.clock.shouldAnimate = true;
+            miniViewer.scene.globe.enableLighting = true;
+
+            miniViewer._cesiumWidget._creditContainer.style.display = "none";
+            syncMiniMap();
+
+            const handler = new Cesium.ScreenSpaceEventHandler(miniViewer.scene.canvas);
+            handler.setInputAction((event) => {
+                const position = event.position;
+                const scene = miniViewer.scene;
+                const camera = scene.camera;
+                let cartesian;
+                if (scene.pickPositionSupported) {
+                    cartesian = scene.pickPosition(position)
+                } else {
+                    cartesian = camera.pickEllipsoid(position, scene.globe.ellipsoid);
+                }
+
+                if (!cartesian) {
+                    return;
+                }
+
+                const viewerCamera = viewer.camera;
+                const cameraPosition = viewerCamera.position;
+                const cameraCartographic = Cesium.Cartographic.fromCartesian(cameraPosition);
+                const cameraHeight = cameraCartographic.height;
+
+                const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+                const longitude = Cesium.Math.toDegrees(cartographic.longitude);
+                const latitude = Cesium.Math.toDegrees(cartographic.latitude);
+
+                const cartographic2 = new Cesium.Cartographic.fromDegrees(longitude, latitude, cameraHeight);
+                const cartesian2 = Cesium.Cartesian3.fromRadians(cartographic2.longitude, cartographic2.latitude, cartographic2.height);
+                if (cartesian2) {
+                    viewer.camera.flyTo({
+                        destination: cartesian2,
+                        orientation: {
+                            heading: viewer.camera.heading,
+                            pitch: viewer.camera.pitch,
+                            roll: viewer.camera.roll
+                        },
+                        duration: 0.1
+                    });
+                }
+            }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+        }
+
+        const syncMiniMap = () => {
+            const view3D = viewer;
+            const view2D = miniViewer;
+            const viewCenter = new Cesium.Cartesian2(
+                Math.floor(view3D.canvas.clientWidth / 2),
+                Math.floor(view3D.canvas.clientHeight / 2)
+            );
+            let worldPosition;
+            const newWorldPosition = view3D.scene.camera.pickEllipsoid(
+                viewCenter
+            );
+            if (Cesium.defined(newWorldPosition)) {
+                worldPosition = newWorldPosition;
+            } else {
+                return;
+            }
+
+            const minDistance = 4000000;
+            const maxDistance = 20000000;
+
+            let distance = Cesium.Cartesian3.distance(
+                worldPosition,
+                view3D.scene.camera.positionWC
+            );
+
+            if (distance >= maxDistance) {
+                view2D.scene.camera.lookAt(
+                    worldPosition,
+                    new Cesium.Cartesian3(0.0, 0.0, maxDistance)
+                );
+            } else if (distance <= minDistance) {
+                view2D.scene.camera.lookAt(
+                    worldPosition,
+                    new Cesium.Cartesian3(0.0, 0.0, minDistance)
+                );
+            } else {
+                view2D.scene.camera.lookAt(
+                    worldPosition,
+                    new Cesium.Cartesian3(0.0, 0.0, distance)
+                );
+            }
+        }
+    </script>
+</th:block>
+</html>

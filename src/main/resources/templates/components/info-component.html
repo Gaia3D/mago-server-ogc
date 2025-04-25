@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<th:block th:fragment="info">
+    <style>
+        #info-layer {
+            width: 250px;
+            max-height: calc(100vh - 30px);
+            overflow: hidden;
+            display: none;
+        }
+    </style>
+    <!-- info layer -->
+    <div id="info-layer" class="layer left top vertical">
+        <h3 th:text="${#messages.msg('info.info')}">Information</h3>
+        <div class="line"></div>
+        <div class="input-wrap">
+            <label for="asset-info-name" th:text="${#messages.msg('info.name')}">Name</label>
+            <input id="asset-info-name" type="text" readonly/>
+            <label for="asset-info-type" th:text="${#messages.msg('info.type')}">Type</label>
+            <input id="asset-info-type" type="text" placeholder="Empty Type" readonly/>
+            <div class="line"></div>
+            <label for="asset-info-date" th:text="${#messages.msg('info.date')}">Date</label>
+            <input id="asset-info-date" type="text" readonly/>
+            <div class="line"></div>
+            <label for="asset-info-status" th:text="${#messages.msg('info.status')}">Status</label>
+            <input id="asset-info-status" type="text" readonly/>
+            <div class="line"></div>
+            <label for="asset-info-url" th:text="${#messages.msg('info.url')}">URL</label>
+            <input id="asset-info-url" type="text" readonly/>
+            <div class="line"></div>
+            <button onclick="closeInformation()" th:text="${#messages.msg('info.close')}">Close</button>
+        </div>
+    </div>
+    <script>
+        const openInformation = () => {
+            const infoLayer = document.getElementById('info-layer')
+            infoLayer.style.display = 'inline-block'
+        }
+
+        const closeInformation = () => {
+            const infoLayer = document.getElementById('info-layer')
+            infoLayer.style.display = 'none'
+        }
+
+        const initInfoLayer = (assetInfo) => {
+            openInformation()
+            const assetInfoName = document.getElementById('asset-info-name')
+            //const assetInfoCrs = document.getElementById('asset-info-crs')
+            const assetInfoType = document.getElementById('asset-info-type')
+            const assetInfoStatus = document.getElementById('asset-info-status')
+            const assetInfoDate = document.getElementById('asset-info-date')
+            const assetInfoPath = document.getElementById('asset-info-path')
+            const assetInfoUrl = document.getElementById('asset-info-url')
+            //const assetInfoSize = document.getElementById('asset-info-size')
+
+            let indexFile;
+            if (assetInfo.type === 'tileset') {
+                indexFile = 'tileset.json'
+            } else if (assetInfo.type === 'terrain') {
+                indexFile = 'layer.json'
+            } else {
+                indexFile = undefined;
+            }
+
+            console.log(assetInfo)
+
+            let assetUrl = window.location.origin + '/data/' + assetInfo.name
+            if (indexFile !== undefined) {
+                assetUrl = assetUrl + "/" + indexFile
+            }
+
+            assetInfoName.value = assetInfo.name
+            assetInfoType.value = assetInfo.type
+            //assetInfoCrs.value = assetInfo.crs
+            //assetInfoType.value = assetInfo.inputFormat
+            assetInfoStatus.value = assetInfo.statusCode
+            assetInfoDate.value = assetInfo.date
+            //assetInfoPath.value = assetInfo.outputPath
+            //assetInfoSize.value = assetInfo.size
+            assetInfoUrl.value = assetUrl
+        }
+    </script>
+</th:block>
+</html>
